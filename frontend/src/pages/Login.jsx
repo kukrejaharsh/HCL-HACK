@@ -1,34 +1,4 @@
-/*import { Link } from 'react-router-dom'
-import AuthForm from '../components/AuthForm'
-import Input from '../components/Input'
-import Button from '../components/Button'
 
-const Login = () => {
-  return (
-    <AuthForm
-      title="Welcome Back"
-      footer={
-        <span>
-          Don&apos;t have an account?{' '}
-          <Link to="/signup" className="text-blue-600 font-semibold">
-            Sign Up
-          </Link>
-        </span>
-      }
-    >
-      <form className="space-y-4">
-        <Input label="Email" type="email" name="email" placeholder="you@example.com" required />
-        <Input label="Password" type="password" name="password" placeholder="••••••••" required />
-        <Button type="submit" className="w-full">
-          Login
-        </Button>
-      </form>
-    </AuthForm>
-  )
-}
-
-export default Login
-*/
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios' // Make sure to install axios if you haven't
