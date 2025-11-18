@@ -1,8 +1,8 @@
 # HCLTech Hackathon: Healthcare Wellness Portal (MVP)
 
-This repository contains the 5-hour Minimum Viable Product (MVP) for the Healthcare Wellness and Preventive Care Portal. This LLD is based on the MERN stack and the provided data model.
+This repository contains the Minimum Viable Product (MVP) for the Healthcare Wellness and Preventive Care Portal given as part of HCL hackathon. This LLD is based on the MERN stack and the provided data model.
 
-## 🚀 MVP Scope (5-Hour Goal)
+## 🚀 MVP Scope 
 
 The primary goal is to deliver a functional, deployed, and secure demonstration.
 * **Core Features:** Functional authentication, patient dashboard (trackers, appointments, **and reminders**), a provider dashboard (patient list, compliance), and profile management.
@@ -24,7 +24,7 @@ The primary goal is to deliver a functional, deployed, and secure demonstration.
 
 ## 💡 Tech Stack Rationale (Why This Stack?)
 
-This stack was chosen for its speed, scalability, and suitability for a 5-hour MVP.
+This stack was chosen for its speed, scalability, and suitability.
 
 * **React.js (Frontend):**
     * **Component-Based:** We can build reusable UI elements (like a `TrackerCard` or `AppointmentItem`), which speeds up development significantly.
@@ -61,128 +61,375 @@ This project follows a **3-Tier (Separated Frontend/Backend)** architecture:
 This is the design for our Mongoose schemas, based on the provided data model. This architecture separates user identity from role-specific data, which is a very scalable approach.
 
 
+erDiagram
+    %% --- RELATIONSHIPS ---
+    USERS ||--|| DOCTOR : "has profile"
+    USERS ||--|| PATIENTS : "has profile"
+    DOCTOR ||--o{ PATIENTS : "assigned primary care"
+    
+    PATIENTS ||--o{ APPOINTMENTS : "requests"
+    DOCTOR ||--o{ APPOINTMENTS : "reviews/manages"
+    
+    PATIENTS ||--o{ ACTIVITY_LOG : "tracks daily stats"
 
-[Image of the database schema diagram provided by the user]
+    %% --- ENTITY DEFINITIONS ---
+    
+    USERS {
+        ObjectId _id PK
+        String name
+        String email
+        String pass "hashed"
+        Number age
+        String phone
+        Object address "Street, City, State, Pincode"
+        String gender
+        Enum role "admin | doctor | patient"
+    }
+
+    DOCTOR {
+        ObjectId _id PK
+        ObjectId user_id FK "Ref: USERS"
+        String speciality
+        String qualification
+        Number experience "Years"
+        Number salary
+    }
+
+    PATIENTS {
+        ObjectId _id PK
+        ObjectId user_id FK "Ref: USERS"
+        String BloodGroup
+        String DiagnosedWith
+        ObjectId DoctorAssigned FK "Ref: DOCTOR"
+    }
+
+    APPOINTMENTS {
+        ObjectId _id PK
+        ObjectId patient_id FK "Ref: PATIENTS"
+        ObjectId doctor_id FK "Ref: DOCTOR"
+        Enum status "pending | Accepted | Rejected"
+        Date appointmentDate
+        Date requestedDate
+        String Reason
+    }
+
+    ACTIVITY_LOG {
+        ObjectId _id PK
+        ObjectId patient_id FK "Ref: PATIENTS"
+        Date DATE
+        Number STEPS
+        Number CALORIES_EATEN
+        Number CALORIES_TARGET
+        Number activityTimeMinutes
+        Number activityTimeTarget
+    }
+
+## System Architecture & Design
+
+High-Level Design (HLD)
+
+The system follows a layered REST API architecture to ensure separation of concerns, scalability, and security.
+
+graph TD
+    Client[Client Web/Mobile] -->|HTTPS| Gateway[API Gateway / Nginx]
+    Gateway --> Server[Node.js + Express Server]
+    
+    subgraph Server Layer
+    Security[🛡️ Security Layer Helmet/CORS] --> Auth[🔑 Auth Layer JWT/RBAC]
+    Auth --> Controllers[🎮 Controllers]
+    Controllers --> Services[🧠 Service Layer]
+    Services --> Models[🗄️ Data Access Layer]
+    end
+    
+    Models --> DB[(MongoDB Database)]
+
+## Data Flow & Components
+
+**Component Description**
+
+**1. Authentication**
+
+Source: Centralized User collection.
 
 
-### 1. User Schema (`user.model.js`)
-* **Description:** Stores the central identity and login information for *all* users. This is the "parent" collection.
-* **Fields:**
-    * `name`: String, required
-    * `email`: String, required, unique
-    * `password`: String, required (will be stored as a hash, from `pass` field)
-    * `age`: Number
-    * `phone`: String
-    * `address`: {
-        * `address`: String,
-        * `city`: String,
-        * `pincode`: String,
-        * `state`: String
+
+Mechanism: JWT tokens containing role ('patient', 'doctor') and profileId.
+
+**2. Patient Dashboard**
+
+Input: Logs daily metrics (steps, calories).
+
+
+
+Processing: Aggregates ActivityLog & fetches Appointments.
+
+
+
+Output: JSON optimized for frontend charts.
+
+**3. Appointment System**
+
+Request: Patient initiates booking.
+
+
+
+Queue: Stored as 'pending'.
+
+
+
+Resolution: Doctor accepts/rejects -> Status updates to 'Accepted'/'Rejected'.
+
+**4. Doctor Dashboard**
+
+View: Aggregates pending Appointments & assigned Patients.
+
+## ⚙️ Low-Level Design (LLD): API Specifications
+
+**1. 🔐 Authentication Module**
+
+Login User
+
+Endpoint: POST /api/auth/login
+
+Description: Validates credentials and returns an access token.
+
+Request Body
+
+{
+  "email": "john@example.com",
+  "pass": "secret123"
+}
+
+
+Response (Success)
+
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1...",
+  "user": {
+    "_id": "user_001",
+    "name": "John Doe",
+    "role": "patient",
+    "patientProfile": "pat_001" 
+    // OR "doctorProfile": "doc_001"
+  }
+}
+
+
+**2. 🏃 Patient Dashboard & Activity API**
+
+Log Daily Activity
+
+Endpoint: POST /api/patient/activity
+
+Headers: Authorization: Bearer <token>
+
+Request Body
+
+{
+  "DATE": "2023-10-27",
+  "STEPS": 8500,
+  "CALORIES_EATEN": 2100,
+  "CALORIES_TARGET": 2000,
+  "activityTimeMinutes": 45,
+  "activityTimeTarget": 60
+}
+
+
+Response
+
+{
+  "success": true,
+  "message": "Activity logged successfully",
+  "data": { "_id": "log_555", "STEPS": 8500 }
+}
+
+
+Get Dashboard Stats
+
+Endpoint: GET /api/patient/dashboard
+
+Query Params: ?range=7days (optional)
+
+Response
+
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "todaySteps": 8500,
+      "todayCalories": 2100
+    },
+    "history": [
+      { "DATE": "2023-10-26", "STEPS": 9000 },
+      { "DATE": "2023-10-27", "STEPS": 8500 }
+    ]
+  }
+}
+
+
+**3. 📅 Appointment & Requests API**
+
+Request Appointment
+
+Endpoint: POST /api/appointments/request
+
+Access: Patient only
+
+Request Body
+
+{
+  "doctor_id": "doc_001", 
+  "requestedDate": "2023-11-01T10:00:00Z",
+  "Reason": "Persistent headache and dizziness"
+}
+
+
+Response
+
+{
+  "success": true,
+  "data": {
+    "_id": "appt_101",
+    "status": "pending",
+    "Reason": "Persistent headache and dizziness"
+  }
+}
+
+
+Get Appointment History
+
+Endpoint: GET /api/appointments/my-history
+
+Response
+
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "appt_100",
+      "status": "Accepted",
+      "appointmentDate": "2023-10-20T09:00:00Z",
+      "doctor_details": { 
+          "name": "Dr. Smith", 
+          "speciality": "Cardiology" 
       }
-    * `gender`: String
-    * `role`: String, enum: `['patient', 'doctor']`
-    * `consentGiven`: Boolean, required **(For registration checkbox)**
+    }
+  ]
+}
 
-### 2. Patient Schema (`patient.model.js`)
-* **Description:** Stores data *specific* to a user with the 'patient' role. It links to the User collection.
-* **Fields:**
-    * `user`: { type: mongoose.Schema.Types.ObjectId, ref: 'User' } (The link to the User)
-    * `bloodGroup`: String
-    * `diagnosedWith`: String
-    * `doctorAssigned`: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor' } (Link to their assigned doctor)
 
-### 3. Doctor Schema (`doctor.model.js`)
-* **Description:** Stores data *specific* to a user with the 'doctor' role. It also links to the User collection.
-* **Fields:**
-    * `user`: { type: mongoose.Schema.Types.ObjectId, ref: 'User' } (The link to the User)
-    * `speciality`: String
-    * `qualification`: String
-    * `experienceInYears`: Number
-    * `salary`: Number
+**4. 👨‍⚕️ Doctor Dashboard API**
 
-### 4. Appointment Schema (`appointment.model.js`)
-* **Description:** Represents a single appointment request and its status, linking a patient and a doctor.
-* **Fields:**
-    * `patient`: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient' }
-    * `doctor`: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor' }
-    * `status`: String, enum: `['pending', 'Accepted', 'Rejected']`, default: 'pending'
-    * `appointmentDate`: Date
-    * `requestedDate`: Date, default: Date.now
-    * `reason`: String
+Get Pending Requests
 
-### 5. Activity Log Schema (`activityLog.model.js`)
-* **Description:** Stores daily health tracker data for a patient.
-* **Fields:**
-    * `patient`: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient' }
-    * `date`: Date, default: Date.now
-    * `steps`: Number
-    * `caloriesEaten`: Number
-    * `caloriesTarget`: Number
-    * `activityTimeInMinutes`: Number
-    * `activityTimeTarget`: Number
+Endpoint: GET /api/doctor/requests
 
-### 6. Reminder Schema (`reminder.model.js`)
-* **Description:** Stores preventive care reminders for patients (e.g., annual checkups).
-* **Fields:**
-    * `patient`: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient' }
-    * `name`: String (e.g., "Annual Blood Test", "Flu Shot")
-    * `dueDate`: Date
-    * `status`: String, enum: ['Pending', 'Completed', 'Missed'], default: 'Pending'
+Logic: Fetches appointments where doctor_id matches current user AND status is 'pending'.
 
----
+Response
 
-## 🔌 API Endpoints (Low-Level Design)
+{
+  "success": true,
+  "count": 3,
+  "data": [
+    {
+      "_id": "appt_101",
+      "requestedDate": "2023-11-01T10:00:00Z",
+      "Reason": "Persistent headache",
+      "patient_details": {
+        "name": "John Doe",
+        "age": 30,
+        "gender": "Male",
+        "DiagnosedWith": "Migraine"
+      }
+    }
+  ]
+}
 
-All endpoints are prefixed with `/api/`. All protected routes use JWT middleware.
 
-### Module 1: Authentication (Public)
-* **`POST /api/auth/register`**
-    * **Description:** For the "Create User" page. This will create a `User` doc AND a `Patient` or `Doctor` doc.
-    * **Body:** `{ "name", "email", "password", "role", "consentGiven": true, ...etc }`
-    * **Response:** `201 Created`
-* **`POST /api/auth/login`**
-    * **Description:** For the "Login" page.
-    * **Body:** `{ "email", "password" }`
-    * **Response:** `200 OK` - `{ "token": "...", "user": { "id", "name", "role", "profileId" } }` (The `profileId` will be the ID from the `Patient` or `Doctor` collection).
+Respond to Request
 
-### Module 2: Patient Module (Protected: `patient` role)
-* **`GET /api/patient/profile`**
-    * **Description:** Get the logged-in patient's full profile (merges `User` and `Patient` data).
-* **`PUT /api/patient/profile`**
-    * **Description:** Update the logged-in patient's profile.
-* **`POST /api/activity-log`**
-    * **Description:** Logs a new entry for the patient's health trackers.
-    * **Body:** `{ "date", "steps", "caloriesEaten", ... }`
-* **`GET /api/activity-log`**
-    * **Description:** Gets all activity log entries for the logged-in patient.
-* **`POST /api/appointments`**
-    * **Description:** **(Book an Appointment)** A patient requests a new appointment.
-    * **Body:** `{ "doctorId": "...", "appointmentDate": "...", "reason": "..." }`
-* **`GET /api/appointments/my-appointments`**
-    * **Description:** Gets a list of the patient's own upcoming and past appointments.
-* **`GET /api/reminders`**
-    * **Description:** Gets all active reminders for the logged-in patient's dashboard.
-* **`PUT /api/reminders/:reminderId`**
-    * **Description:** Allows a patient to mark a reminder as 'Completed'.
-    * **Body:** `{ "status": "Completed" }`
+Endpoint: PATCH /api/appointments/:id/status
 
-### Module 3: Doctor (Provider) Module (Protected: `doctor` role)
-* **`GET /api/doctor/patients`**
-    * **Description:** Gets the main list of all patients assigned to the logged-in doctor.
-* **`GET /api/doctor/patients/:patientId/profile`**
-    * **Description:** Gets the *specific profile* (User + Patient data) for a single patient.
-* **`GET /api/doctor/patients/:patientId/activity`**
-    * **Description:** Gets the *activity log history* for a single patient.
-* **`GET /api/doctor/patients/:patientId/reminders`**
-    * **Description:** Gets the *preventive reminders* for a single patient.
-* **`GET /api/doctor/appointments`**
-    * **Description:** Gets all appointments (by status) for the logged-in doctor's schedule.
-* **`PUT /api/doctor/appointments/:appointmentId`**
-    * **Description:** **(Manage Appointment)** Allows the doctor to 'Accept' or 'Reject' a pending appointment.
-    * **Body:** `{ "status": "Accepted" }`
+Request Body
 
-### Module 4: Public Module
-* **`GET /api/doctors`**
-    * **Description:** Gets a public list of all doctors (name, specialty) so patients can choose one to book with.
-* **`GET /api/public-info`**
-    * **Description:** Gets the static content for the public health info page.
+{
+  "status": "Accepted", // Enum: 'Accepted' | 'Rejected'
+  "appointmentDate": "2023-11-01T10:30:00Z" // Required if Accepted
+}
+
+
+Response
+
+{
+  "success": true,
+  "data": { 
+      "status": "Accepted", 
+      "appointmentDate": "2023-11-01T10:30:00Z" 
+  }
+}
+
+
+Get My Patients
+
+Endpoint: GET /api/doctor/patients
+
+Logic: Fetches patients where DoctorAssigned matches current doctor ID.
+
+Response
+
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "pat_001",
+      "BloodGroup": "O+",
+      "DiagnosedWith": "Hypertension",
+      "user_details": {
+        "name": "Alice Bob",
+        "email": "alice@example.com",
+        "phone": "123-456-7890"
+      }
+    }
+  ]
+}
+
+
+**5. 👤 User Profile API**
+
+Get My Profile
+
+Endpoint: GET /api/users/profile
+
+Description: Returns role-specific profile data.
+
+Response (Patient View)
+
+{
+  "success": true,
+  "data": {
+    "name": "John Doe",
+    "email": "john@mail.com",
+    "address": { "address1": "123 St", "city": "NY" },
+    "patient_info": {
+      "BloodGroup": "A+",
+      "DiagnosedWith": "None",
+      "DoctorAssigned": "Dr. Smith"
+    }
+  }
+}
+
+
+Response (Doctor View)
+
+{
+  "success": true,
+  "data": {
+    "name": "Dr. Smith",
+    "doctor_info": {
+      "speciality": "Cardiology",
+      "experience": 10,
+      "qualification": "MBBS"
+    }
+  }
